@@ -1,0 +1,6 @@
+# Playwright MCP server internal state
+.playwright-mcp/
+
+# All agent deliverables — regenerated on each pipeline run
+output/
+
