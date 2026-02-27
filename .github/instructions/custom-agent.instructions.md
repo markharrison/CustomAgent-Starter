@@ -17,15 +17,15 @@ Official docs: <https://docs.github.com/en/copilot/how-tos/use-copilot-agents>
 
 Every agent falls into one of three archetypes. Choose the right one before writing anything.
 
-|                         |       Agent         |   Orchestrator         |          Subagent            |
+|                         |        Agent        |      Orchestrator      |           Subagent           |
 | ----------------------- | :-----------------: | :--------------------: | :--------------------------: |
 | **Purpose**             | Self-contained task | Coordinates a pipeline |  Executes one pipeline step  |
 | **User-invocable**      |       ✅ Yes        |         ✅ Yes         |            ❌ No             |
-| **Delegates work**      |         No          |  Yes (to subagents)    |              No              |
-| **Writes state files**  | ✅ Yes (progress)   |  Yes (pipeline state)  |     Yes (step output MD)     |
+| **Delegates work**      |         No          |   Yes (to subagents)   |              No              |
+| **Writes state files**  |  ✅ Yes (progress)  |  Yes (pipeline state)  |     Yes (step output MD)     |
 | **Writes deliverables** |      Optional       |           No           |           Optional           |
 | **Owns approval gates** |         No          |          Yes           |              No              |
-| **Maintains state**     | Yes (checkpoints)   | Yes (via state folder) |              No              |
+| **Maintains state**     |  Yes (checkpoints)  | Yes (via state folder) |              No              |
 | **Has handoffs**        |      Optional       |           No           |              No              |
 | **Location**            |  `.github/agents/`  |   `.github/agents/`    | `.github/agents/_subagents/` |
 
@@ -60,19 +60,19 @@ tools: ["{tool-ids}"]
 ---
 ```
 
-| Field         | Rules                                                                 |
-| ------------- | --------------------------------------------------------------------- |
-| `name`        | Title Case, 1-3 words. Stable — renames confuse users and docs.       |
-| `description` | 50-150 characters. State scope AND boundaries.                        |
-| `model`       | Array format: `["Claude Opus 4.6"]`. See Model Selection below.       |
-| `tools`       | Explicit list of tool IDs. Omit = all tools enabled. `[]` = no tools. |
+| Field         | Rules                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| `name`        | Title Case, 1-3 words. Stable — renames confuse users and docs.                                    |
+| `description` | 50-150 characters. State scope AND boundaries.                                                     |
+| `model`       | Array format: `["Claude Opus 4.6"]`. See Model Selection below.                                    |
+| `tools`       | Explicit list of tool IDs. See Tool Requirements below. Omit = all tools enabled. `[]` = no tools. |
 
 ### Archetype-Specific Fields
 
 **Agent:**
 
 ```yaml
-user-invocable: true  # project convention — see note below
+user-invocable: true # project convention — see note below
 agents: [] # or ["*"] if it needs to call other agents
 ```
 
@@ -91,15 +91,50 @@ user-invocable: false
 agents: []
 ```
 
+### Tool Requirements by Archetype
+
+**All agents write state files and therefore require file editing tools.**
+
+Minimum required tools:
+
+**Agent:**
+
+```yaml
+tools: ["read", "edit"] # edit required for state file + optional deliverables
+```
+
+**Orchestrator:**
+
+```yaml
+tools: ["read", "edit", "agent"] # edit for pipeline state, agent for subagent invocation
+```
+
+**Subagent:**
+
+```yaml
+tools: ["read", "edit"] # edit required for step state file + optional deliverables
+```
+
+Add additional tools based on the agent's specific needs:
+
+- `"search"` — if the agent needs to search code/files
+- `"execute"` — if the agent runs terminal commands
+- `"web"` — if the agent fetches web content
+- `"azure-mcp/*"` — if the agent uses Azure MCP tools
+
+**Common mistake**: Omitting `"edit"` from the tools list, which prevents the agent from writing required state files.
+
+See **Tool ID Format** section below for detailed tool documentation.
+
 ### `agents` Field Values
 
 The `agents` field controls which other agents this agent can invoke:
 
-| Value                                    | Meaning                                      |
-| ---------------------------------------- | -------------------------------------------- |
-| `[]`                                     | Cannot invoke any agents (default, safest)   |
-| `["*"]`                                  | Can invoke any agent in the repo             |
-| `["Research Agent", "Analysis Agent"]`   | Can invoke only the named agents             |
+| Value                                  | Meaning                                    |
+| -------------------------------------- | ------------------------------------------ |
+| `[]`                                   | Cannot invoke any agents (default, safest) |
+| `["*"]`                                | Can invoke any agent in the repo           |
+| `["Research Agent", "Analysis Agent"]` | Can invoke only the named agents           |
 
 Prefer explicit agent names over `["*"]` when the agent only needs
 access to a known set — principle of least privilege applies.
@@ -109,17 +144,17 @@ Use `["*"]` only for orchestrators that must invoke all pipeline subagents.
 
 Match model capability to task complexity. Use concrete model names in frontmatter:
 
-| Task Type                  | Recommended Model      | Rationale                                    |
-| -------------------------- | ---------------------- | -------------------------------------------- |
-| Planning / reasoning       | `Claude Opus 4.6`      | Accuracy matters — bad plans cost more to fix |
-| Implementation / execution | `Claude Sonnet 4.5`    | Speed for code generation and tool use       |
-| Lightweight / utility      | `Claude Haiku 4.5`     | Balance of speed and quality                 |
+| Task Type                  | Recommended Model   | Rationale                                     |
+| -------------------------- | ------------------- | --------------------------------------------- |
+| Planning / reasoning       | `Claude Opus 4.6`   | Accuracy matters — bad plans cost more to fix |
+| Implementation / execution | `Claude Sonnet 4.5` | Speed for code generation and tool use        |
+| Lightweight / utility      | `Claude Haiku 4.5`  | Balance of speed and quality                  |
 
 **Current recommendations as of Feb 2026. Review as new models become available.**
 
 Guidelines:
 
-- Use the most capable model the task *needs* — not the most expensive available
+- Use the most capable model the task _needs_ — not the most expensive available
 - Planning tasks (orchestrators, architecture) benefit from strongest reasoning
 - Implementation tasks (code generation, analysis) balance speed and quality
 - Lightweight tasks (formatting, simple validation) can use faster models
@@ -141,7 +176,7 @@ Guidelines:
 The markdown content below frontmatter defines the agent's behavior. Structure varies
 by archetype. Use this matrix to determine which sections to include:
 
-| Body Section                                     |   Agent     | Orchestrator |  Subagent   |
+| Body Section                                     |    Agent    | Orchestrator |  Subagent   |
 | ------------------------------------------------ | :---------: | :----------: | :---------: |
 | `# {Agent Name}` + role line                     |     ✅      |      ✅      |     ✅      |
 | `## Context` / `## MANDATORY: Read Skills First` |     ✅      |      ✅      |     ✅      |
@@ -251,7 +286,9 @@ sub-headings using emoji bullets.
 **All agents:**
 
 - ✅ Scope boundaries: what this agent does
+- ✅ Include `"edit"` in the `tools` frontmatter field — required for writing state files
 - ❌ Anti-scope: what this agent does NOT do (explicit boundary with other agents)
+- ❌ Omit `"edit"` from tools — all agents write state files and need file editing capability
 
 **Agent (additional):**
 
@@ -336,6 +373,7 @@ append a brief inline summary. The checkpoint list must mirror the phases define
 in `## Workflow`.
 
 **State file lifecycle:**
+
 1. **On start**: create the file with all phases unchecked — do this before Phase 1 begins
 2. **After each phase**: update the file — check off the completed phase with an inline summary
 3. **Never**: write the state file only at the end — that defeats live visibility
@@ -349,12 +387,12 @@ The orchestrator defines the full pipeline as a step table:
 ```markdown
 ## Pipeline Definition
 
-| Step | Subagent     | State File       | Deliverables (optional) | Gate     | On Fail (optional)           |
-| ---- | ------------ | ---------------- | ----------------------- | -------- | ---------------------------- |
-| 1    | {Agent Name} | `{NN}-{step}.md` | —                       | Approval | Stop                         |
-| 2    | {Agent Name} | `{NN}-{step}.md` | `./output/src/{files}`   | Auto     | Retry once                   |
+| Step | Subagent     | State File       | Deliverables (optional)  | Gate     | On Fail (optional)            |
+| ---- | ------------ | ---------------- | ------------------------ | -------- | ----------------------------- |
+| 1    | {Agent Name} | `{NN}-{step}.md` | —                        | Approval | Stop                          |
+| 2    | {Agent Name} | `{NN}-{step}.md` | `./output/src/{files}`   | Auto     | Retry once                    |
 | 3    | {Agent Name} | `{NN}-{step}.md` | —                        | Approval | Back to Step 2 ({Agent Name}) |
-| N    | {Agent Name} | `{NN}-{step}.md` | `./output/infra/{files}` | —        | Stop                         |
+| N    | {Agent Name} | `{NN}-{step}.md` | `./output/infra/{files}` | —        | Stop                          |
 ```
 
 Rules:
@@ -396,10 +434,10 @@ Example pipeline row:
 Use this pattern when tests should bounce failures back to code generation:
 
 ```markdown
-| Step | Subagent     | State File         | Deliverables      | Gate | On Fail                         |
-| ---- | ------------ | ------------------ | ----------------- | ---- | ------------------------------- |
-| 2    | Coder Agent  | `02-code.md`       | `./output/src/*`   | Auto | Retry once                      |
-| 3    | Tester Agent | `03-test.md`       | `./output/tests/*` | Auto | Back to Step 2 (Coder Agent)    |
+| Step | Subagent     | State File   | Deliverables       | Gate | On Fail                      |
+| ---- | ------------ | ------------ | ------------------ | ---- | ---------------------------- |
+| 2    | Coder Agent  | `02-code.md` | `./output/src/*`   | Auto | Retry once                   |
+| 3    | Tester Agent | `03-test.md` | `./output/tests/*` | Auto | Back to Step 2 (Coder Agent) |
 ```
 
 When Step 3 fails validation, orchestrator writes failure details, invokes Step 2,
@@ -417,9 +455,9 @@ are listed explicitly so the gate knows exactly what to check.
 
 Agents produce two distinct types of output. Keep them strictly separated.
 
-| Type             | What it is                                                      | Where it goes                            |
-| ---------------- | --------------------------------------------------------------- | ---------------------------------------- |
-| **State files**  | MD docs tracking progress — decisions, plans, checkpoints, logs | `./output/state/`                        |
+| Type             | What it is                                                      | Where it goes                                                     |
+| ---------------- | --------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **State files**  | MD docs tracking progress — decisions, plans, checkpoints, logs | `./output/state/`                                                 |
 | **Deliverables** | Actual work product — code, templates, configs, scripts         | `./output/` subfolders (e.g., `./output/src/`, `./output/infra/`) |
 
 ### Why separate?
@@ -427,7 +465,7 @@ Agents produce two distinct types of output. Keep them strictly separated.
 - Both live under `./output/` in separate subfolders, preserving clean reset semantics:
   - Delete `./output/state/` alone to reset pipeline position while keeping deliverables.
   - Delete `./output/` entirely for a full reset of both state and deliverables.
-- State tracks *what was decided and what has run* — it is ephemeral and safe to delete independently.
+- State tracks _what was decided and what has run_ — it is ephemeral and safe to delete independently.
 - Deliverables are the actual work product — they survive a state-only reset.
 
 > **Everything goes under `./output/`.** State → `./output/state/`; deliverables → their own
@@ -557,12 +595,12 @@ The orchestrator creates `00-{orchestrator-name}.md` in `./output/state/` when t
 starts and updates it after each gate decision. This file preserves context that
 would otherwise be lost between conversation sessions:
 
-| Section           | Purpose                                                    |
-| ----------------- | ---------------------------------------------------------- |
-| **Pipeline**      | Orchestrator name, start date, status                      |
-| **Parameters**    | Values extracted from the user's original prompt           |
-| **Steps**         | Checkbox list — checked off as each step completes         |
-| **Retry Log**     | Retry and bounce-back attempts with outcomes (if any)      |
+| Section        | Purpose                                               |
+| -------------- | ----------------------------------------------------- |
+| **Pipeline**   | Orchestrator name, start date, status                 |
+| **Parameters** | Values extracted from the user's original prompt      |
+| **Steps**      | Checkbox list — checked off as each step completes    |
+| **Retry Log**  | Retry and bounce-back attempts with outcomes (if any) |
 
 Structure:
 
@@ -621,13 +659,13 @@ Structure:
 
 ### Decision values for inline annotation
 
-| Decision / Annotation           | When used                                                            |
-| ------------------------------- | -------------------------------------------------------------------- |
-| `🔄 Running since {datetime}`   | Transient — written before subagent starts; replaced when gate runs  |
-| `Approved`                      | User approved at an `Approval` gate                                  |
-| `Auto`                          | `Auto` gate passed validation automatically                          |
-| `Revised`                       | User requested revision (step re-ran, then passed)                   |
-| `Skipped`                       | Step was skipped (if pipeline supports it)                           |
+| Decision / Annotation         | When used                                                           |
+| ----------------------------- | ------------------------------------------------------------------- |
+| `🔄 Running since {datetime}` | Transient — written before subagent starts; replaced when gate runs |
+| `Approved`                    | User approved at an `Approval` gate                                 |
+| `Auto`                        | `Auto` gate passed validation automatically                         |
+| `Revised`                     | User requested revision (step re-ran, then passed)                  |
+| `Skipped`                     | Step was skipped (if pipeline supports it)                          |
 
 The orchestrator checks off each step and updates `## Status` after each
 gate decision. `## Parameters` are written once at pipeline start.
@@ -680,7 +718,7 @@ Keep this simple:
 
 1. Write `./output/state/{NN}-{step}-failure.md` with the failing checks and key errors
 2. Persist retry/bounce count in that same failure file (for example: `Retry-Attempt: 1`)
-  so resume behavior is deterministic
+   so resume behavior is deterministic
 3. Apply `On Fail` from the pipeline row
 4. Allow only one automatic retry/bounce for the same failing step
 5. If it still fails, stop and ask the user
@@ -706,6 +744,7 @@ Choose:
 🛑 Stop → save progress, halt pipeline
 
 Step map:
+
 1. {Subagent A}
 2. {Subagent B}
 3. {Subagent C}
@@ -716,16 +755,16 @@ to the next step and log that the auto gate passed.
 
 ### Gate Actions
 
-| Action         | Orchestrator Behavior                              |
-| -------------- | -------------------------------------------------- |
-| **✅ Approve** | Invoke next subagent                               |
-| **✏️ Revise**  | Re-invoke subagent with user feedback appended.    |
-|                | Subagent overwrites state file and deliverables.   |
-|                | Gate runs again after completion.                  |
+| Action         | Orchestrator Behavior                               |
+| -------------- | --------------------------------------------------- |
+| **✅ Approve** | Invoke next subagent                                |
+| **✏️ Revise**  | Re-invoke subagent with user feedback appended.     |
+|                | Subagent overwrites state file and deliverables.    |
+|                | Gate runs again after completion.                   |
 | **⏪ Revert**  | User specifies step number or step name. Resolve to |
 |                | step number, delete downstream files, re-invoke it. |
-| **🛑 Stop**    | Do nothing. State is preserved in                  |
-|                | `./output/state/`. Next invocation resumes here.   |
+| **🛑 Stop**    | Do nothing. State is preserved in                   |
+|                | `./output/state/`. Next invocation resumes here.    |
 
 For `Auto` gates, the orchestrator skips the action menu and proceeds
 immediately after successful validation.
@@ -744,7 +783,7 @@ For each step, invoke the subagent using the `runSubagent` tool with this
 prompt pattern:
 
 This step must be performed as the agent "{Agent Name}" defined in
-".github/agents/_subagents/{filename}.agent.md".
+".github/agents/\_subagents/{filename}.agent.md".
 
 IMPORTANT:
 
@@ -787,8 +826,8 @@ Document what the agent produces, separating state files from deliverables:
 
 ### State Files
 
-| File             | Location         | Purpose                       |
-| ---------------- | ---------------- | ----------------------------- |
+| File             | Location          | Purpose                       |
+| ---------------- | ----------------- | ----------------------------- |
 | `{NN}-{step}.md` | `./output/state/` | {What this state file tracks} |
 
 ### Deliverables (if any)
@@ -861,9 +900,9 @@ Orchestrators MUST document their state file:
 ```markdown
 ### State Files
 
-| File              | Location         | Purpose                                    |
-| ----------------- | ---------------- | ------------------------------------------ |
-| `00-{orchestrator-name}.md`  | `./output/state/` | Pipeline parameters, step checklist, status  |
+| File                        | Location          | Purpose                                     |
+| --------------------------- | ----------------- | ------------------------------------------- |
+| `00-{orchestrator-name}.md` | `./output/state/` | Pipeline parameters, step checklist, status |
 ```
 
 Deliverables are optional per step. Not every step produces code or templates.
@@ -995,7 +1034,7 @@ Aliases are supported as shorthand (case-insensitive):
 | `read`    | File reading (`readFile`, `readNotebookCellOutput`, etc.)        |
 | `edit`    | File editing (`createFile`, `editFiles`, etc.)                   |
 | `search`  | Code search (`textSearch`, `fileSearch`, `searchSubagent`, etc.) |
-| `agent`   | Subagent invocation (`runSubagent`)                             |
+| `agent`   | Subagent invocation (`runSubagent`)                              |
 | `web`     | Web access (`fetch`, `githubRepo`)                               |
 | `todo`    | Task management (`TodoWrite`) — VS Code only                     |
 
@@ -1041,12 +1080,12 @@ Subagents receive resolved context — they work with concrete paths and values.
 
 ### Common Variables
 
-| Variable         | Source              | Example               |
-| ---------------- | ------------------- | --------------------- |
-| State path       | Convention          | `./output/state/`     |
-| Deliverable path | Agent definition    | `./output/src/`, `./output/infra/`  |
-| Step number      | Pipeline definition | `02`                  |
-| User preferences | Phase 1 questions   | `React`, `TypeScript` |
+| Variable         | Source              | Example                            |
+| ---------------- | ------------------- | ---------------------------------- |
+| State path       | Convention          | `./output/state/`                  |
+| Deliverable path | Agent definition    | `./output/src/`, `./output/infra/` |
+| Step number      | Pipeline definition | `02`                               |
+| User preferences | Phase 1 questions   | `React`, `TypeScript`              |
 
 ---
 
@@ -1115,9 +1154,11 @@ catches failures before presenting to the user.
 
 ### Tool Configuration
 
+- ❌ **Omitting `"edit"` from tools list** — all agents write state files and need file editing capability
 - ❌ Granting all tools when only a few are needed
 - ❌ Subagent with `agents: ["*"]` (should be `[]`)
 - ❌ Orchestrator missing tools that subagents require
+- ❌ Orchestrator missing `"agent"` tool for subagent invocation
 
 ### Content
 
@@ -1137,13 +1178,13 @@ catches failures before presenting to the user.
 name: "Code Reviewer"
 description: "Reviews code for quality, security, and maintainability. Does NOT modify code."
 model: ["Claude Sonnet 4.5"]
-tools: ["read", "search"]
+tools: ["read", "search", "edit"]
 user-invocable: true
 agents: []
 ---
 ```
 
-```markdown
+````markdown
 # Code Reviewer
 
 Reviews code for quality, security, and best practices.
@@ -1188,8 +1229,8 @@ Update `./output/state/00-code-reviewer.md` — check off all phases.
 
 ### State Files (optional)
 
-| File                        | Location         | Purpose             |
-| --------------------------- | ---------------- | ------------------- |
+| File                  | Location          | Purpose             |
+| --------------------- | ----------------- | ------------------- |
 | `00-code-reviewer.md` | `./output/state/` | Progress checkpoint |
 
 State file structure:
@@ -1205,13 +1246,15 @@ State file structure:
 - [x] Phase 2: Analyze — found 2 critical, 5 medium issues
 - [x] Phase 3: Report — findings presented by severity
 ```
+````
 
 ## Validation Checklist
 
 - [ ] All findings include severity and specific file/line references
 - [ ] Security issues flagged separately
 - [ ] No code modifications made
-```
+
+````
 
 ### Orchestrator
 
@@ -1225,7 +1268,7 @@ user-invocable: true
 agents: ["*"]
 argument-hint: "Describe what you want to analyze"
 ---
-```
+````
 
 ```markdown
 # Pipeline Conductor
@@ -1256,11 +1299,11 @@ Master orchestrator for the 3-step analysis workflow.
 
 ## Pipeline Definition
 
-| Step | Subagent       | State File       | Gate     | On Fail                                |
-| ---- | -------------- | ---------------- | -------- | -------------------------------------- |
-| 1    | Research Agent | `01-research.md` | Approval | Stop                                   |
-| 2    | Analysis Agent | `02-analysis.md` | Auto     | Retry once                             |
-| 3    | Report Agent   | `03-report.md`   | —        | Back to Step 2 (Analysis Agent)        |
+| Step | Subagent       | State File       | Gate     | On Fail                         |
+| ---- | -------------- | ---------------- | -------- | ------------------------------- |
+| 1    | Research Agent | `01-research.md` | Approval | Stop                            |
+| 2    | Analysis Agent | `02-analysis.md` | Auto     | Retry once                      |
+| 3    | Report Agent   | `03-report.md`   | —        | Back to Step 2 (Analysis Agent) |
 
 All state files → `./output/state/`
 Orchestrator state: `00-{orchestrator-name}.md`
@@ -1306,6 +1349,7 @@ Choose:
 🛑 Stop → halt, resume later
 
 Step map:
+
 1. Research Agent
 2. Analysis Agent
 3. Report Agent
@@ -1315,7 +1359,7 @@ Step map:
 Invoke subagents via `#runSubagent` with this pattern:
 
 This step must be performed as the agent "{Name}" defined in
-".github/agents/_subagents/{file}.agent.md".
+".github/agents/\_subagents/{file}.agent.md".
 
 IMPORTANT:
 
@@ -1336,9 +1380,9 @@ IMPORTANT:
 
 ### State Files
 
-| File              | Location         | Purpose                                   |
-| ----------------- | ---------------- | ----------------------------------------- |
-| `00-{orchestrator-name}.md`  | `./output/state/` | Pipeline parameters, step checklist, status |
+| File                        | Location          | Purpose                                     |
+| --------------------------- | ----------------- | ------------------------------------------- |
+| `00-{orchestrator-name}.md` | `./output/state/` | Pipeline parameters, step checklist, status |
 ```
 
 ### Subagent
@@ -1348,13 +1392,13 @@ IMPORTANT:
 name: "Research Agent"
 description: "Gathers and synthesizes research for Step 1. Invoked by orchestrator only."
 model: ["Claude Opus 4.6"]
-tools: ["read", "search", "web"]
+tools: ["read", "search", "web", "edit"]
 user-invocable: false
 agents: []
 ---
 ```
 
-```markdown
+````markdown
 # Research Agent
 
 **Step 1** of the 3-step workflow: `[research] → analysis → report`
@@ -1414,8 +1458,8 @@ Check off Phase 3 with a brief summary.
 
 ### State Files
 
-| File             | Location         | Purpose           |
-| ---------------- | ---------------- | ----------------- |
+| File             | Location          | Purpose           |
+| ---------------- | ----------------- | ----------------- |
 | `01-research.md` | `./output/state/` | Research findings |
 
 State file structure:
@@ -1431,6 +1475,7 @@ State file structure:
 - [ ] Phase 2: Synthesis
 - [ ] Phase 3: Finalize
 ```
+````
 
 ```text
                                   ← after all phases complete:
@@ -1447,11 +1492,11 @@ State file structure:
 
 ## Error Handling
 
-| Error                     | Response                          |
-| ------------------------- | --------------------------------- |
-| Missing prerequisite file | STOP — report to orchestrator     |
-| Tool unavailable          | Fall back to alternative approach |
-| Validation failure        | Report specific error, suggest fix|
+| Error                     | Response                           |
+| ------------------------- | ---------------------------------- |
+| Missing prerequisite file | STOP — report to orchestrator      |
+| Tool unavailable          | Fall back to alternative approach  |
+| Validation failure        | Report specific error, suggest fix |
 
 ## Validation Checklist
 
@@ -1460,7 +1505,8 @@ State file structure:
 - [ ] State file saved to `./output/state/01-research.md`
 - [ ] Template headings match exactly
 - [ ] Attribution header present
-```
+
+`````
 
 ---
 
@@ -1544,3 +1590,4 @@ File naming: lowercase with hyphens. Allowed characters: `.`, `-`, `_`, `a-z`, `
 - [Creating Custom Agents](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/create-custom-agents)
 - [Custom Agents in VS Code](https://code.visualstudio.com/docs/copilot/customization/custom-agents)
 - [MCP Integration](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/extend-coding-agent-with-mcp)
+`````
